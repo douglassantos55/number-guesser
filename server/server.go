@@ -13,11 +13,9 @@ type Server struct {
 	handlers []EventHandler
 }
 
-func NewServer() *Server {
+func NewServer(handlers []EventHandler) *Server {
 	return &Server{
-		handlers: []EventHandler{
-			&QueueManager{},
-		},
+		handlers: handlers,
 	}
 }
 

@@ -1,8 +1,6 @@
 package client
 
 import (
-	"log"
-
 	"example.com/game/common"
 	"github.com/gorilla/websocket"
 )
@@ -23,7 +21,6 @@ func (c *Client) Connect(addr string) error {
 	socket, _, err := websocket.DefaultDialer.Dial("ws://"+addr, nil)
 
 	if err != nil {
-		log.Println(err)
 		return err
 	}
 

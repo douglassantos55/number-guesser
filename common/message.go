@@ -12,8 +12,5 @@ type Message struct {
 func QueueUp() Message {
 	return Message{
 		Type: "queue_up",
-		Payload: map[string]interface{}{
-			"test": true,
-		},
 	}
 }
