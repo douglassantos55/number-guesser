@@ -3,9 +3,6 @@ package server
 import (
 	"testing"
 	"time"
-
-	"example.com/game/client"
-	"example.com/game/common"
 )
 
 func TestQueueCommand(t *testing.T) {
@@ -19,18 +16,11 @@ func TestQueueCommand(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	c := client.NewClient()
-	c.Connect("0.0.0.0:8080")
+	c := NewTestClient()
+	response := c.QueueUp()
 
-	c.Send(common.QueueUp())
-
-	select {
-	case response := <-c.Incoming:
-		if response.Type != "wait" {
-			t.Errorf("Expected \"wait\", got \"%s\"", response.Type)
-		}
-	case <-time.After(time.Second):
-		t.Error("Expected response, got timeout")
+	if response.Type != "wait" {
+		t.Errorf("Expected \"wait\", got \"%s\"", response.Type)
 	}
 }
 
@@ -44,12 +34,8 @@ func TestQueuesUser(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	c := client.NewClient()
-	c.Connect("0.0.0.0:8080")
-
-	c.Send(common.QueueUp())
-
-	time.Sleep(100 * time.Millisecond)
+	c := NewTestClient()
+	c.QueueUp()
 
 	if queueManager.queue.Count() != 1 {
 		t.Errorf("Expected queue to have one, got %d", queueManager.queue.Count())
@@ -79,16 +65,11 @@ func TestDispatchesMatchFound(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	c1 := client.NewClient()
-	c2 := client.NewClient()
+	c1 := NewTestClient()
+	c2 := NewTestClient()
 
-	c1.Connect("0.0.0.0:8080")
-	c2.Connect("0.0.0.0:8080")
-
-	c1.Send(common.QueueUp())
-	c2.Send(common.QueueUp())
-
-	time.Sleep(100 * time.Millisecond)
+	c1.QueueUp()
+	c2.QueueUp()
 
 	if fakeMaker.Invoked != 1 {
 		t.Errorf("Expected match found to be dispatched, got %d", fakeMaker.Invoked)
