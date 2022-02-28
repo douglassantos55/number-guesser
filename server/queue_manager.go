@@ -64,8 +64,8 @@ func NewQueueManager() *QueueManager {
 
 func (q *QueueManager) Process(event Event, server *Server) {
 	if event.Type == "queue_up" {
-        q.mut.Lock()
-        defer q.mut.Unlock()
+		q.mut.Lock()
+		defer q.mut.Unlock()
 
 		q.queue.Push(event.Socket)
 

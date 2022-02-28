@@ -24,10 +24,13 @@ func TestQueueCommand(t *testing.T) {
 
 	c.Send(common.QueueUp())
 
-	response := <-c.Incoming
-
-	if response.Type != "wait" {
-		t.Errorf("Expected \"wait\", got \"%s\"", response.Type)
+	select {
+	case response := <-c.Incoming:
+		if response.Type != "wait" {
+			t.Errorf("Expected \"wait\", got \"%s\"", response.Type)
+		}
+	case <-time.After(time.Second):
+		t.Error("Expected response, got timeout")
 	}
 }
 
