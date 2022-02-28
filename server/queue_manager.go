@@ -1,6 +1,8 @@
 package server
 
 import (
+	"sync"
+
 	"example.com/game/common"
 	"github.com/gorilla/websocket"
 )
@@ -50,16 +52,21 @@ func (q *Queue) Push(socket *websocket.Conn) {
 
 type QueueManager struct {
 	queue *Queue
+	mut   *sync.Mutex
 }
 
 func NewQueueManager() *QueueManager {
 	return &QueueManager{
 		queue: &Queue{},
+		mut:   new(sync.Mutex),
 	}
 }
 
-func (q *QueueManager) Process(event Event) {
+func (q *QueueManager) Process(event Event, server *Server) {
 	if event.Type == "queue_up" {
+        q.mut.Lock()
+        defer q.mut.Unlock()
+
 		q.queue.Push(event.Socket)
 
 		event.Socket.WriteJSON(common.Message{
@@ -67,11 +74,18 @@ func (q *QueueManager) Process(event Event) {
 		})
 
 		if q.queue.Count() == NUM_OF_PLAYERS {
-            players := make([]*websocket.Conn, 0)
+			players := make([]*websocket.Conn, 0)
 
 			for i := 0; i < NUM_OF_PLAYERS; i++ {
 				players = append(players, q.queue.Pop())
 			}
+
+			server.Dispatch(Event{
+				Type: "match_found",
+				Payload: map[string]interface{}{
+					"players": players,
+				},
+			})
 		}
 	}
 }

@@ -47,13 +47,13 @@ func (s *Server) HandleRequest(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
-			s.ProcessMessage(NewEvent(msg, c))
+			s.Dispatch(NewEvent(msg, c))
 		}
 	}()
 }
 
-func (s *Server) ProcessMessage(event Event) {
+func (s *Server) Dispatch(event Event) {
 	for _, handler := range s.handlers {
-		handler.Process(event)
+		handler.Process(event, s)
 	}
 }

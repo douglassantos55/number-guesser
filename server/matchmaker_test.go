@@ -8,47 +8,34 @@ import (
 	"example.com/game/common"
 )
 
-func TestQueueCommand(t *testing.T) {
-	queueManager := NewQueueManager()
+func TestMatchFound(t *testing.T) {
+	matchMaker := NewMatchMaker()
 	server := NewServer([]EventHandler{
-		queueManager,
-	})
-	defer server.Close()
-
-	go server.Listen("0.0.0.0:8080")
-
-	time.Sleep(100 * time.Millisecond)
-
-	c := client.NewClient()
-	c.Connect("0.0.0.0:8080")
-
-	c.Send(common.QueueUp())
-
-	response := <-c.Incoming
-
-	if response.Type != "wait" {
-		t.Errorf("Expected \"wait\", got \"%s\"", response.Type)
-	}
-}
-
-func TestQueuesUser(t *testing.T) {
-	queueManager := NewQueueManager()
-	server := NewServer([]EventHandler{
-		queueManager,
+		matchMaker,
 	})
 	defer server.Close()
 	go server.Listen("0.0.0.0:8080")
 
 	time.Sleep(100 * time.Millisecond)
 
-	c := client.NewClient()
-	c.Connect("0.0.0.0:8080")
+	c1 := client.NewClient()
 
-	c.Send(common.QueueUp())
+	c1.Connect("0.0.0.0:8080")
 
-	time.Sleep(100 * time.Millisecond)
+	c1.Send(common.Message{
+		Type: "match_found",
+	})
 
-	if queueManager.queue.Count() != 1 {
-		t.Errorf("Expected queue to have one, got %d", queueManager.queue.Count())
+	select {
+	case response := <-c1.Incoming:
+		if response.Type != "confirm_match" {
+			t.Errorf("Expected confirm match response, got %s", response.Type)
+		}
+
+        if int(response.Payload["matchId"].(float64)) != 1 {
+			t.Errorf("Expected 1, got %d", int(response.Payload["matchId"].(float64)))
+        }
+	case <-time.After(time.Second):
+		t.Errorf("Expected confirm match response, got timeout")
 	}
 }

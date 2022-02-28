@@ -12,7 +12,7 @@ type Event struct {
 }
 
 type EventHandler interface {
-	Process(event Event)
+	Process(event Event, server *Server)
 }
 
 func NewEvent(msg common.Message, socket *websocket.Conn) Event {

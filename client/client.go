@@ -7,13 +7,13 @@ import (
 
 type Client struct {
 	Outgoing chan common.Message
-	Incoming chan common.Response
+	Incoming chan common.Message
 }
 
 func NewClient() *Client {
 	return &Client{
 		Outgoing: make(chan common.Message),
-		Incoming: make(chan common.Response),
+		Incoming: make(chan common.Message),
 	}
 }
 
@@ -29,7 +29,7 @@ func (c *Client) Connect(addr string) error {
 
 		go func() {
 			for {
-				var response common.Response
+				var response common.Message
 				err := socket.ReadJSON(&response)
 
 				if err != nil {
