@@ -101,6 +101,10 @@ func (m *MatchMaker) Process(event Event, server *Server) {
 			match := m.matches[matchId]
 			match.Confirmed = append(match.Confirmed, event.Socket)
 
+			event.Socket.WriteJSON(common.Message{
+				Type: "wait_for_players",
+			})
+
 			if len(match.Confirmed) == NUM_OF_PLAYERS {
 				match.Ready <- match.Confirmed
 				delete(m.matches, matchId)
@@ -114,6 +118,12 @@ func (m *MatchMaker) Process(event Event, server *Server) {
 		if m.HasMatch(matchId) {
 			match := m.matches[matchId]
 			delete(m.matches, matchId)
+
+            for _, socket := range match.Players {
+                socket.WriteJSON(common.Message{
+                    Type: "match_declined",
+                })
+            }
 
 			for _, socket := range match.Confirmed {
 				server.Dispatch(Event{

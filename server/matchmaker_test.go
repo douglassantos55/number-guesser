@@ -70,12 +70,12 @@ func TestConfirmsMatch(t *testing.T) {
 	}
 
 	res1 := c1.GetIncoming()
-	if res1.Type != "game_start" {
-		t.Errorf("Expected \"game_start\", got %s", res1.Type)
+	if res1.Type != "wait_for_players" {
+		t.Errorf("Expected \"wait_for_players\", got %s", res1.Type)
 	}
 	res2 := c2.GetIncoming()
-	if res2.Type != "game_start" {
-		t.Errorf("Expected \"game_start\", got %s", res2.Type)
+	if res2.Type != "wait_for_players" {
+		t.Errorf("Expected \"wait_for_players\", got %s", res2.Type)
 	}
 }
 
@@ -127,11 +127,13 @@ func TestTimeout(t *testing.T) {
 	c1.QueueUp()
 	c2.QueueUp()
 
-	c1.AcceptMatch(1)
+	c1.AcceptMatch(1) // match found
 
-	res := c1.GetIncoming()
+    c1.GetIncoming() // wait_for_players
+	c1.GetIncoming() // match_declined
+	res2 := c1.GetIncoming()
 
-	if res.Type != "wait_for_match" {
-		t.Error("Expected requeue")
+	if res2.Type != "wait_for_match" {
+		t.Errorf("Expected \"wait_for_match\", got %v", res2.Type)
 	}
 }

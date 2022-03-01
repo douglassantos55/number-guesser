@@ -20,12 +20,7 @@ func NewTestClient() *TestClient {
 }
 
 func (c *TestClient) GetIncoming() common.Message {
-	select {
-	case msg := <-c.Client.Incoming:
-		return msg
-	}
-	// should never reach this
-	return common.Message{}
+	return <-c.Client.Incoming
 }
 
 func (c *TestClient) QueueUp() common.Message {
@@ -42,7 +37,7 @@ func (c *TestClient) AcceptMatch(match int) common.Message {
 			"matchId": match,
 		},
 	})
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(time.Millisecond)
 	return c.GetIncoming()
 }
 
@@ -53,6 +48,6 @@ func (c *TestClient) DenyMatch(match int) common.Message {
 			"matchId": match,
 		},
 	})
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(time.Millisecond)
 	return c.GetIncoming()
 }
