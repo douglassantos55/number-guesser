@@ -19,8 +19,8 @@ func TestQueueCommand(t *testing.T) {
 	c := NewTestClient()
 	response := c.QueueUp()
 
-	if response.Type != "wait" {
-		t.Errorf("Expected \"wait\", got \"%s\"", response.Type)
+	if response.Type != "wait_for_match" {
+		t.Errorf("Expected \"wait_for_match\", got \"%s\"", response.Type)
 	}
 }
 

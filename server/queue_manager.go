@@ -70,7 +70,7 @@ func (q *QueueManager) Process(event Event, server *Server) {
 		q.queue.Push(event.Socket)
 
 		event.Socket.WriteJSON(common.Message{
-			Type: "wait",
+			Type: "wait_for_match",
 		})
 
 		if q.queue.Count() == NUM_OF_PLAYERS {

@@ -1,7 +1,6 @@
 package server
 
 import (
-	"log"
 	"time"
 
 	"example.com/game/client"
@@ -24,8 +23,6 @@ func (c *TestClient) GetIncoming() common.Message {
 	select {
 	case msg := <-c.Client.Incoming:
 		return msg
-	case <-time.After(time.Second):
-		log.Fatal("Timeout")
 	}
 	// should never reach this
 	return common.Message{}
@@ -41,6 +38,17 @@ func (c *TestClient) QueueUp() common.Message {
 func (c *TestClient) AcceptMatch(match int) common.Message {
 	c.Client.Send(common.Message{
 		Type: "match_confirmed",
+		Payload: map[string]interface{}{
+			"matchId": match,
+		},
+	})
+	time.Sleep(100 * time.Millisecond)
+	return c.GetIncoming()
+}
+
+func (c *TestClient) DenyMatch(match int) common.Message {
+	c.Client.Send(common.Message{
+		Type: "match_declined",
 		Payload: map[string]interface{}{
 			"matchId": match,
 		},
