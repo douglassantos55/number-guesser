@@ -8,7 +8,7 @@ import (
 func TestMatchFound(t *testing.T) {
 	server := NewServer([]EventHandler{
 		NewQueueManager(),
-		NewMatchMaker(),
+		NewMatchMaker(100 * time.Millisecond),
 	})
 
 	defer server.Close()
@@ -42,7 +42,7 @@ func TestMatchFound(t *testing.T) {
 }
 
 func TestConfirmsMatch(t *testing.T) {
-	matchMaker := NewMatchMaker()
+	matchMaker := NewMatchMaker(100 * time.Millisecond)
 	server := NewServer([]EventHandler{
 		NewQueueManager(),
 		matchMaker,
@@ -56,31 +56,45 @@ func TestConfirmsMatch(t *testing.T) {
 	c1 := NewTestClient()
 	c2 := NewTestClient()
 
-	c1.QueueUp()
-	c2.QueueUp()
+	c1.QueueUp() // wait_for_match
+	c2.QueueUp() // wait_for_match
 
-	c1.AcceptMatch(1)
-	if matchMaker.Confirmed(1) != 1 {
-		t.Errorf("Expected 1 confirmed, got %d", matchMaker.Confirmed(1))
+	c1.GetIncoming() // skips match_found
+	c2.GetIncoming() // skips match_found
+
+	wait1 := c1.AcceptMatch(1)
+	if wait1.Type != "wait_for_players" {
+		t.Errorf("Expected \"wait_for_players\", got \"%s\"", wait1.Type)
 	}
 
-	c2.AcceptMatch(1)
-	if matchMaker.HasMatch(1) {
+	match, _ := matchMaker.FindMatch(1)
+
+	if match.Confirmed.Count() != 1 {
+		t.Errorf("Expected 1 confirmed, got %d", match.Confirmed.Count())
+	}
+
+	wait2 := c2.AcceptMatch(1)
+
+	if wait2.Type != "wait_for_players" {
+		t.Errorf("Expected \"wait_for_players\", got \"%s\"", wait2.Type)
+	}
+
+	if match, _ := matchMaker.FindMatch(1); match != nil {
 		t.Errorf("Expected match to be resolved %v", matchMaker.matches)
 	}
 
 	res1 := c1.GetIncoming()
-	if res1.Type != "wait_for_players" {
-		t.Errorf("Expected \"wait_for_players\", got %s", res1.Type)
+	if res1.Type != "game_start" {
+		t.Errorf("Expected \"game_start\", got %s", res1.Type)
 	}
 	res2 := c2.GetIncoming()
-	if res2.Type != "wait_for_players" {
-		t.Errorf("Expected \"wait_for_players\", got %s", res2.Type)
+	if res2.Type != "game_start" {
+		t.Errorf("Expected \"game_start\", got %s", res2.Type)
 	}
 }
 
 func TestDenyMatch(t *testing.T) {
-	matchMaker := NewMatchMaker()
+	matchMaker := NewMatchMaker(100 * time.Millisecond)
 	queueManager := NewQueueManager()
 
 	server := NewServer([]EventHandler{
@@ -108,7 +122,7 @@ func TestDenyMatch(t *testing.T) {
 }
 
 func TestTimeout(t *testing.T) {
-	matchMaker := NewMatchMaker()
+	matchMaker := NewMatchMaker(100 * time.Millisecond)
 	queueManager := NewQueueManager()
 
 	server := NewServer([]EventHandler{
@@ -129,7 +143,7 @@ func TestTimeout(t *testing.T) {
 
 	c1.AcceptMatch(1) // match found
 
-    c1.GetIncoming() // wait_for_players
+	c1.GetIncoming() // wait_for_players
 	c1.GetIncoming() // match_declined
 	res2 := c1.GetIncoming()
 

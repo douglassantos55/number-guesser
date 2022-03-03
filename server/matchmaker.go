@@ -1,6 +1,8 @@
 package server
 
 import (
+	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -8,57 +10,150 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type Match struct {
-	Id        int
-	Players   []*websocket.Conn
-	Ready     chan []*websocket.Conn
-	Confirmed []*websocket.Conn
+type Connection interface {
+	Send(msg common.Message)
 }
 
-func NewMatch(id int, players []*websocket.Conn) *Match {
-	return &Match{
-		Id:        id,
-		Players:   players,
-		Ready:     make(chan []*websocket.Conn),
-		Confirmed: []*websocket.Conn{},
+type Socket struct {
+	conn *websocket.Conn
+}
+
+func NewSocket(conn *websocket.Conn) *Socket {
+	return &Socket{conn: conn}
+}
+
+func (s *Socket) Send(msg common.Message) {
+	s.conn.WriteJSON(msg)
+}
+
+type Sockets struct {
+	conns []*Socket
+	mutex *sync.Mutex
+}
+
+func NewSockets(conns []*websocket.Conn) *Sockets {
+	sockets := []*Socket{}
+
+	for _, conn := range conns {
+		sockets = append(sockets, NewSocket(conn))
+	}
+
+	return &Sockets{
+		conns: sockets,
+		mutex: new(sync.Mutex),
 	}
 }
 
-func (m *Match) SendConfirmation() {
-	for _, socket := range m.Players {
-		socket.WriteJSON(common.Message{
-			Type: "match_found",
-			Payload: map[string]interface{}{
-				"matchId": m.Id,
-			},
+func (s *Sockets) Send(msg common.Message) {
+	for _, socket := range s.conns {
+		socket.Send(msg)
+	}
+}
+
+func (s *Sockets) Add(conn *websocket.Conn) *Socket {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	socket := NewSocket(conn)
+	s.conns = append(s.conns, socket)
+
+	return socket
+}
+
+func (s *Sockets) Count() int {
+	return len(s.conns)
+}
+
+type Match struct {
+	Id        int
+	Players   *Sockets
+	Confirmed *Sockets
+	Ready     chan bool
+}
+
+func NewMatch(id int, players *Sockets) *Match {
+	return &Match{
+		Id:        id,
+		Players:   players,
+		Ready:     make(chan bool),
+		Confirmed: NewSockets([]*websocket.Conn{}),
+	}
+}
+
+func (m *Match) AskForConfirmation() {
+	m.Players.Send(common.Message{
+		Type: "match_found",
+		Payload: map[string]interface{}{
+			"matchId": m.Id,
+		},
+	})
+}
+
+func (m *Match) WaitForConfirmation(timeout time.Duration, dispatch func(event Event)) {
+	select {
+	case isReady := <-m.Ready:
+		if isReady {
+			m.Confirmed.Send(common.Message{
+				Type: "game_start",
+			})
+		}
+	case <-time.After(timeout):
+		m.Cancel(dispatch)
+	}
+}
+
+func (m *Match) Cancel(dispatch func(event Event)) {
+	m.Players.Send(common.Message{
+		Type: "match_canceled",
+		Payload: map[string]interface{}{
+			"match": m.Id,
+		},
+	})
+
+	m.RequeueConfirmed(dispatch)
+}
+
+func (m *Match) RequeueConfirmed(dispatch func(event Event)) {
+	for _, socket := range m.Confirmed.conns {
+		dispatch(Event{
+			Type:   "queue_up",
+			Socket: socket.conn,
 		})
 	}
 }
 
 type MatchMaker struct {
 	currentId int
+	timeout   time.Duration
 	matches   map[int]*Match
 	mut       *sync.Mutex
 }
 
-func NewMatchMaker() *MatchMaker {
+func NewMatchMaker(timeout time.Duration) *MatchMaker {
 	return &MatchMaker{
 		currentId: 0,
+		timeout:   timeout,
 		mut:       new(sync.Mutex),
 		matches:   make(map[int]*Match),
 	}
 }
 
-func (m *MatchMaker) Confirmed(match int) int {
-	m.mut.Lock()
-	defer m.mut.Unlock()
-
-	return len(m.matches[match].Confirmed)
+func (m *MatchMaker) AddMatch(match *Match) {
+	m.matches[match.Id] = match
 }
 
-func (m *MatchMaker) HasMatch(match int) bool {
-	_, ok := m.matches[match]
-	return ok
+func (m *MatchMaker) RemoveMatch(match *Match) {
+	delete(m.matches, match.Id)
+}
+
+func (m *MatchMaker) FindMatch(matchId int) (*Match, error) {
+	match, ok := m.matches[matchId]
+
+	if !ok {
+		return nil, errors.New(fmt.Sprintf("Match with ID %d not found", matchId))
+	}
+
+	return match, nil
 }
 
 func (m *MatchMaker) Process(event Event, server *Server) {
@@ -66,71 +161,48 @@ func (m *MatchMaker) Process(event Event, server *Server) {
 	defer m.mut.Unlock()
 
 	if event.Type == "match_found" {
-		matchId := m.currentId + 1
-		m.currentId = matchId
-
+		m.currentId = m.currentId + 1
 		players := event.Payload["players"].([]*websocket.Conn)
-		match := NewMatch(matchId, players)
 
-		m.matches[matchId] = match
-		match.SendConfirmation()
+		match := NewMatch(m.currentId, NewSockets(players))
+		m.AddMatch(match)
 
-		go func() {
-			select {
-			case confirmed := <-match.Ready:
-				for _, socket := range confirmed {
-					socket.WriteJSON(common.Message{
-						Type: "game_start",
-					})
-				}
-			case <-time.After(500 * time.Millisecond):
-				server.Dispatch(Event{
-					Type: "match_declined",
-					Payload: map[string]interface{}{
-						"matchId": float64(matchId),
-					},
-				})
-			}
-		}()
+		match.AskForConfirmation()
+		go match.WaitForConfirmation(m.timeout, server.Dispatch)
 	}
 
 	if event.Type == "match_confirmed" {
 		matchId := int(event.Payload["matchId"].(float64))
+		match, err := m.FindMatch(matchId)
 
-		if m.HasMatch(matchId) {
-			match := m.matches[matchId]
-			match.Confirmed = append(match.Confirmed, event.Socket)
+		if err == nil {
+			player := match.Confirmed.Add(event.Socket)
 
-			event.Socket.WriteJSON(common.Message{
+			player.Send(common.Message{
 				Type: "wait_for_players",
 			})
 
-			if len(match.Confirmed) == NUM_OF_PLAYERS {
-				match.Ready <- match.Confirmed
-				delete(m.matches, matchId)
+			if match.Confirmed.Count() == NUM_OF_PLAYERS {
+				match.Ready <- true
+				m.RemoveMatch(match)
 			}
 		}
 	}
 
 	if event.Type == "match_declined" {
 		matchId := int(event.Payload["matchId"].(float64))
+		match, err := m.FindMatch(matchId)
 
-		if m.HasMatch(matchId) {
-			match := m.matches[matchId]
-			delete(m.matches, matchId)
+		if err == nil {
+			match.Players.Send(common.Message{
+				Type: "match_canceled",
+				Payload: map[string]interface{}{
+					"matchId": match.Id,
+				},
+			})
 
-            for _, socket := range match.Players {
-                socket.WriteJSON(common.Message{
-                    Type: "match_declined",
-                })
-            }
-
-			for _, socket := range match.Confirmed {
-				server.Dispatch(Event{
-					Type:   "queue_up",
-					Socket: socket,
-				})
-			}
+			match.Cancel(server.Dispatch)
+			m.RemoveMatch(match)
 		}
 	}
 }
