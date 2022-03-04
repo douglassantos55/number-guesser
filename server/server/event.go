@@ -1,7 +1,6 @@
 package server
 
 import (
-	"example.com/game/common"
 	"github.com/gorilla/websocket"
 )
 
@@ -15,7 +14,7 @@ type EventHandler interface {
 	Process(event Event, server *Server)
 }
 
-func NewEvent(msg common.Message, socket *websocket.Conn) Event {
+func NewEvent(msg Message, socket *websocket.Conn) Event {
 	return Event{
 		Type:    msg.Type,
 		Payload: msg.Payload,

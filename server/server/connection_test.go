@@ -1,9 +1,10 @@
 package server
 
 import (
-	"example.com/game/client"
 	"testing"
 	"time"
+
+    "example.com/game/client/client"
 )
 
 func TestAcceptsConnections(t *testing.T) {

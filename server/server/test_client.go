@@ -3,8 +3,7 @@ package server
 import (
 	"time"
 
-	"example.com/game/client"
-	"example.com/game/common"
+	"example.com/game/client/client"
 )
 
 type TestClient struct {
@@ -19,19 +18,19 @@ func NewTestClient() *TestClient {
 	return testClient
 }
 
-func (c *TestClient) GetIncoming() common.Message {
+func (c *TestClient) GetIncoming() client.Message {
 	return <-c.Client.Incoming
 }
 
-func (c *TestClient) QueueUp() common.Message {
-	c.Client.Send(common.Message{
+func (c *TestClient) QueueUp() client.Message {
+	c.Client.Send(client.Message{
 		Type: "queue_up",
 	})
 	return c.GetIncoming()
 }
 
-func (c *TestClient) Guess(guess, gameId int) common.Message {
-	c.Client.Send(common.Message{
+func (c *TestClient) Guess(guess, gameId int) client.Message {
+	c.Client.Send(client.Message{
 		Type: "guess",
 		Payload: map[string]interface{}{
 			"guess":  guess,
@@ -41,8 +40,8 @@ func (c *TestClient) Guess(guess, gameId int) common.Message {
 	return c.GetIncoming()
 }
 
-func (c *TestClient) AcceptMatch(match int) common.Message {
-	c.Client.Send(common.Message{
+func (c *TestClient) AcceptMatch(match int) client.Message {
+	c.Client.Send(client.Message{
 		Type: "match_confirmed",
 		Payload: map[string]interface{}{
 			"matchId": match,
@@ -52,8 +51,8 @@ func (c *TestClient) AcceptMatch(match int) common.Message {
 	return c.GetIncoming()
 }
 
-func (c *TestClient) DenyMatch(match int) common.Message {
-	c.Client.Send(common.Message{
+func (c *TestClient) DenyMatch(match int) client.Message {
+	c.Client.Send(client.Message{
 		Type: "match_declined",
 		Payload: map[string]interface{}{
 			"matchId": match,

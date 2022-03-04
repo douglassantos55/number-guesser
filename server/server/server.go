@@ -4,9 +4,13 @@ import (
 	"context"
 	"net/http"
 
-	"example.com/game/common"
 	"github.com/gorilla/websocket"
 )
+
+type Message struct {
+	Type    string
+	Payload map[string]interface{}
+}
 
 type Server struct {
 	server   *http.Server
@@ -40,7 +44,7 @@ func (s *Server) HandleRequest(w http.ResponseWriter, r *http.Request) {
 		defer c.Close()
 
 		for {
-			var msg common.Message
+			var msg Message
 			err := c.ReadJSON(&msg)
 
 			if err != nil {

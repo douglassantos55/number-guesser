@@ -1,4 +1,4 @@
-module example.com/game
+module example.com/game/client
 
 go 1.17
 

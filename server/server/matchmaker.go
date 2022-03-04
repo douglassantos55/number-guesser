@@ -6,12 +6,11 @@ import (
 	"sync"
 	"time"
 
-	"example.com/game/common"
 	"github.com/gorilla/websocket"
 )
 
 type Connection interface {
-	Send(msg common.Message)
+	Send(msg Message)
 }
 
 type Socket struct {
@@ -22,7 +21,7 @@ func NewSocket(conn *websocket.Conn) *Socket {
 	return &Socket{conn: conn}
 }
 
-func (s *Socket) Send(msg common.Message) {
+func (s *Socket) Send(msg Message) {
 	s.conn.WriteJSON(msg)
 }
 
@@ -44,7 +43,7 @@ func NewSockets(conns []*websocket.Conn) *Sockets {
 	}
 }
 
-func (s *Sockets) Send(msg common.Message) {
+func (s *Sockets) Send(msg Message) {
 	for _, socket := range s.conns {
 		socket.Send(msg)
 	}
@@ -81,7 +80,7 @@ func NewMatch(id int, players *Sockets) *Match {
 }
 
 func (m *Match) AskForConfirmation() {
-	m.Players.Send(common.Message{
+	m.Players.Send(Message{
 		Type: "match_found",
 		Payload: map[string]interface{}{
 			"matchId": m.Id,
@@ -106,7 +105,7 @@ func (m *Match) WaitForConfirmation(timeout time.Duration, dispatch func(event E
 }
 
 func (m *Match) Cancel(dispatch func(event Event)) {
-	m.Players.Send(common.Message{
+	m.Players.Send(Message{
 		Type: "match_canceled",
 		Payload: map[string]interface{}{
 			"match": m.Id,
@@ -181,7 +180,7 @@ func (m *MatchMaker) Process(event Event, server *Server) {
 		if err == nil {
 			player := match.Confirmed.Add(event.Socket)
 
-			player.Send(common.Message{
+			player.Send(Message{
 				Type: "wait_for_players",
 			})
 
@@ -197,7 +196,7 @@ func (m *MatchMaker) Process(event Event, server *Server) {
 		match, err := m.FindMatch(matchId)
 
 		if err == nil {
-			match.Players.Send(common.Message{
+			match.Players.Send(Message{
 				Type: "match_canceled",
 				Payload: map[string]interface{}{
 					"matchId": match.Id,

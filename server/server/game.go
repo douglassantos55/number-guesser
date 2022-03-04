@@ -2,8 +2,6 @@ package server
 
 import (
 	"math/rand"
-
-	"example.com/game/common"
 )
 
 type Game struct {
@@ -24,7 +22,7 @@ func NewGame(players *Sockets) *Game {
 
 func (g *Game) Start() {
 	// send guess for both players
-	g.Players.Send(common.Message{
+	g.Players.Send(Message{
 		Type: "guess",
 		Payload: map[string]interface{}{
 			"GameId": g.Id,
@@ -46,14 +44,14 @@ func (g *Game) CheckGuess(guess int, player *Socket) bool {
 
 func (g *Game) End(winner *Socket) {
 	// send victory to winner
-	winner.Send(common.Message{
+	winner.Send(Message{
 		Type: "victory",
 	})
 
 	for _, player := range g.Players.conns {
 		if player != winner {
 			// send loss to loser
-			player.Send(common.Message{
+			player.Send(Message{
 				Type: "loss",
 			})
 		}
@@ -69,7 +67,7 @@ func (g *Game) Feedback(guess int, player *Socket) {
 		feedback = "Try a smaller number"
 	}
 
-	player.Send(common.Message{
+	player.Send(Message{
 		Type: "feedback",
 		Payload: map[string]interface{}{
 			"message": feedback,
