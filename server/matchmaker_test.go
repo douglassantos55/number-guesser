@@ -45,6 +45,7 @@ func TestConfirmsMatch(t *testing.T) {
 	matchMaker := NewMatchMaker(100 * time.Millisecond)
 	server := NewServer([]EventHandler{
 		NewQueueManager(),
+		NewGameManager(),
 		matchMaker,
 	})
 
@@ -84,12 +85,12 @@ func TestConfirmsMatch(t *testing.T) {
 	}
 
 	res1 := c1.GetIncoming()
-	if res1.Type != "game_start" {
-		t.Errorf("Expected \"game_start\", got %s", res1.Type)
+	if res1.Type != "guess" {
+		t.Errorf("Expected \"guess\", got %s", res1.Type)
 	}
 	res2 := c2.GetIncoming()
-	if res2.Type != "game_start" {
-		t.Errorf("Expected \"game_start\", got %s", res2.Type)
+	if res2.Type != "guess" {
+		t.Errorf("Expected \"guess\", got %s", res2.Type)
 	}
 }
 

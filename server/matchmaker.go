@@ -93,8 +93,11 @@ func (m *Match) WaitForConfirmation(timeout time.Duration, dispatch func(event E
 	select {
 	case isReady := <-m.Ready:
 		if isReady {
-			m.Confirmed.Send(common.Message{
+			dispatch(Event{
 				Type: "game_start",
+				Payload: map[string]interface{}{
+					"players": m.Confirmed,
+				},
 			})
 		}
 	case <-time.After(timeout):

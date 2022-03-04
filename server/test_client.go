@@ -30,6 +30,17 @@ func (c *TestClient) QueueUp() common.Message {
 	return c.GetIncoming()
 }
 
+func (c *TestClient) Guess(guess, gameId int) common.Message {
+	c.Client.Send(common.Message{
+		Type: "guess",
+		Payload: map[string]interface{}{
+			"guess":  guess,
+			"gameId": gameId,
+		},
+	})
+	return c.GetIncoming()
+}
+
 func (c *TestClient) AcceptMatch(match int) common.Message {
 	c.Client.Send(common.Message{
 		Type: "match_confirmed",
