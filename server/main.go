@@ -10,7 +10,7 @@ func main() {
     server := server.NewServer([]server.EventHandler{
         server.NewGameManager(),
         server.NewQueueManager(),
-        server.NewMatchMaker(30 * time.Second),
+        server.NewMatchMaker(10 * time.Second),
     })
 
     defer server.Close()

@@ -43,16 +43,19 @@ func (g *Game) CheckGuess(guess int, player *Socket) bool {
 }
 
 func (g *Game) End(winner *Socket) {
-	// send victory to winner
-	winner.Send(Message{
-		Type: "victory",
-	})
-
 	for _, player := range g.Players.conns {
-		if player != winner {
+		if player.conn != winner.conn {
 			// send loss to loser
 			player.Send(Message{
 				Type: "loss",
+				Payload: map[string]interface{}{
+					"answer": g.Answer,
+				},
+			})
+		} else {
+			// send victory to winner
+			winner.Send(Message{
+				Type: "victory",
 			})
 		}
 	}

@@ -3,6 +3,7 @@ package server
 import (
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -100,6 +101,7 @@ func (m *Match) WaitForConfirmation(timeout time.Duration, dispatch func(event E
 			})
 		}
 	case <-time.After(timeout):
+		log.Println("timeout")
 		m.Cancel(dispatch)
 	}
 }
@@ -112,6 +114,7 @@ func (m *Match) Cancel(dispatch func(event Event)) {
 		},
 	})
 
+	//m.Ready <- false
 	m.RequeueConfirmed(dispatch)
 }
 
@@ -141,14 +144,23 @@ func NewMatchMaker(timeout time.Duration) *MatchMaker {
 }
 
 func (m *MatchMaker) AddMatch(match *Match) {
+	m.mut.Lock()
+	defer m.mut.Unlock()
+
 	m.matches[match.Id] = match
 }
 
 func (m *MatchMaker) RemoveMatch(match *Match) {
+	m.mut.Lock()
+	defer m.mut.Unlock()
+
 	delete(m.matches, match.Id)
 }
 
 func (m *MatchMaker) FindMatch(matchId int) (*Match, error) {
+	m.mut.Lock()
+	defer m.mut.Unlock()
+
 	match, ok := m.matches[matchId]
 
 	if !ok {
@@ -159,9 +171,6 @@ func (m *MatchMaker) FindMatch(matchId int) (*Match, error) {
 }
 
 func (m *MatchMaker) Process(event Event, server *Server) {
-	m.mut.Lock()
-	defer m.mut.Unlock()
-
 	if event.Type == "match_found" {
 		m.currentId = m.currentId + 1
 		players := event.Payload["players"].([]*websocket.Conn)
@@ -196,15 +205,9 @@ func (m *MatchMaker) Process(event Event, server *Server) {
 		match, err := m.FindMatch(matchId)
 
 		if err == nil {
-			match.Players.Send(Message{
-				Type: "match_canceled",
-				Payload: map[string]interface{}{
-					"matchId": match.Id,
-				},
-			})
-
-			match.Cancel(server.Dispatch)
 			m.RemoveMatch(match)
+			match.Cancel(server.Dispatch)
+			match.Ready <- false
 		}
 	}
 }

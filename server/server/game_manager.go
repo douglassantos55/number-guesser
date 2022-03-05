@@ -3,6 +3,9 @@ package server
 import (
 	"errors"
 	"fmt"
+	"log"
+	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -47,6 +50,7 @@ func (g *GameManager) Process(event Event, server *Server) {
 		players := event.Payload["players"].(*Sockets)
 		game := NewGame(players)
 
+        log.Println("answer", game.Answer)
 		g.AddGame(game)
 		game.Start()
 	}
@@ -58,8 +62,7 @@ func (g *GameManager) Process(event Event, server *Server) {
 		game, err := g.FindGame(gameId)
 
 		if err == nil {
-			guess := int(event.Payload["guess"].(float64))
-
+            guess, _ := strconv.Atoi(strings.TrimSpace(event.Payload["guess"].(string)))
 			if game.CheckGuess(guess, NewSocket(event.Socket)) {
 				g.RemoveGame(game)
 			}
