@@ -34,8 +34,8 @@ func TestGame(t *testing.T) {
 
 	gameId := int(res.Payload["GameId"].(float64))
 
-	res1 := c1.Guess(69, gameId)
-	res2 := c2.Guess(4, gameId)
+	res1 := c1.Guess("69", gameId)
+	res2 := c2.Guess("4", gameId)
 
 	if res1.Type != "feedback" {
 		t.Errorf("Expected \"feedback\", got \"%v\"", res1.Type)
@@ -51,8 +51,8 @@ func TestGame(t *testing.T) {
 		t.Errorf("Expected \"Try a greater number\", got \"%v\"", res2.Payload["message"])
 	}
 
-	victory := c1.Guess(40, gameId)
-	defeat := c2.Guess(355, gameId)
+	victory := c1.Guess("40", gameId)
+	defeat := c2.Guess("355", gameId)
 
 	if victory.Type != "victory" {
 		t.Errorf("Expected \"victory\", got \"%v\"", victory.Type)

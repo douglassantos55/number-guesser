@@ -29,7 +29,7 @@ func (c *TestClient) QueueUp() client.Message {
 	return c.GetIncoming()
 }
 
-func (c *TestClient) Guess(guess, gameId int) client.Message {
+func (c *TestClient) Guess(guess string, gameId int) client.Message {
 	c.Client.Send(client.Message{
 		Type: "guess",
 		Payload: map[string]interface{}{

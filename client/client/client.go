@@ -49,18 +49,27 @@ func (s *IdleState) Execute(client *Client) {
 type WaitingForMatch struct{}
 
 func (s *WaitingForMatch) Execute(client *Client) {
-	msg := <-client.Incoming
-
-	switch msg.Type {
-	case "wait_for_match":
-		log.Println("Wait for match...")
-	case "match_found":
-		matchId := int(msg.Payload["matchId"].(float64))
-		client.SetState(&MatchFoundState{
-			MatchId: matchId,
-		})
-	default:
-		log.Println("weird type")
+	select {
+	case choice := <-ReadInput():
+		switch choice {
+		case "cancel\n":
+            client.Send(Message{
+                Type: "dequeue",
+            })
+			client.SetState(&IdleState{})
+		}
+	case msg := <-client.Incoming:
+		switch msg.Type {
+		case "wait_for_match":
+			log.Println("Waiting for match... type \"cancel\" to leave")
+		case "match_found":
+			matchId := int(msg.Payload["matchId"].(float64))
+			client.SetState(&MatchFoundState{
+				MatchId: matchId,
+			})
+		default:
+			log.Println("weird type", msg)
+		}
 	}
 }
 
@@ -69,7 +78,7 @@ type MatchFoundState struct {
 }
 
 func (s *MatchFoundState) Execute(client *Client) {
-	log.Println("accept or decline")
+	log.Println("Match found. Type \"accept\" or \"decline\"")
 
 	select {
 	case msg := <-client.Incoming:
@@ -78,7 +87,7 @@ func (s *MatchFoundState) Execute(client *Client) {
 			log.Println("Match canceled")
 			client.SetState(&IdleState{})
 		default:
-			log.Println("nope")
+			log.Println("nope", msg)
 		}
 	case choice := <-ReadInput():
 		switch choice {
@@ -99,7 +108,7 @@ func (s *MatchFoundState) Execute(client *Client) {
 			})
 			client.SetState(&IdleState{})
 		default:
-			log.Println("unexpected")
+			log.Println("unexpected", choice)
 		}
 	}
 }
@@ -116,6 +125,7 @@ func (s *MatchConfirmedState) Execute(client *Client) {
 		log.Println("Match canceled")
 		client.SetState(&WaitingForMatch{})
 	case "guess":
+        log.Println("Guess a number")
 		client.SetState(&PlayingState{
 			GameId: int(msg.Payload["GameId"].(float64)),
 		})
@@ -127,8 +137,6 @@ type PlayingState struct {
 }
 
 func (s *PlayingState) Execute(client *Client) {
-	log.Println("Guess a number")
-
 	select {
 	case guess := <-ReadInput():
 		client.Send(Message{
@@ -139,17 +147,17 @@ func (s *PlayingState) Execute(client *Client) {
 			},
 		})
 	case msg := <-client.Incoming:
-        switch msg.Type {
-        case "feedback":
-            log.Println(msg.Payload["message"].(string))
-        case "victory":
-            log.Println("Correct! You won!")
-            client.SetState(&IdleState{})
-        case "loss":
-            answer := msg.Payload["answer"]
-            log.Printf("You lost. The number was %v", answer)
-            client.SetState(&IdleState{})
-        }
+		switch msg.Type {
+		case "feedback":
+			log.Println(msg.Payload["message"].(string))
+		case "victory":
+			log.Println("Correct! You won!")
+			client.SetState(&IdleState{})
+		case "loss":
+			answer := msg.Payload["answer"]
+			log.Printf("You lost. The number was %v", answer)
+			client.SetState(&IdleState{})
+		}
 	}
 }
 

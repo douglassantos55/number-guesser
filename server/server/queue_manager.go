@@ -11,25 +11,41 @@ const NUM_OF_PLAYERS = 2
 
 type Queue struct {
 	Head *Node
+	Tail *Node
+
+	sockets map[*websocket.Conn]*Node
 }
 
 type Node struct {
 	Next   *Node
+	Prev   *Node
 	Socket *websocket.Conn
 }
 
 func (q *Queue) Count() int {
-	count := 0
-	for cur := q.Head; cur != nil; cur = cur.Next {
-		count++
-	}
-	return count
+	return len(q.sockets)
 }
 
 func (q *Queue) Pop() *websocket.Conn {
 	node := q.Head
 	q.Head = q.Head.Next
+
+	if q.Head != nil {
+		q.Head.Prev = nil
+	}
+
+	q.Remove(node.Socket)
 	return node.Socket
+}
+
+func (q *Queue) Remove(socket *websocket.Conn) {
+	node := q.sockets[socket]
+
+	if node.Prev != nil {
+		node.Prev.Next = node.Next
+	}
+
+	delete(q.sockets, socket)
 }
 
 func (q *Queue) Push(socket *websocket.Conn) {
@@ -39,15 +55,14 @@ func (q *Queue) Push(socket *websocket.Conn) {
 
 	if q.Head == nil {
 		q.Head = node
+		q.Tail = node
 	} else {
-		cur := q.Head
-
-		for cur != nil && cur.Next != nil {
-			cur = cur.Next
-		}
-
-		cur.Next = node
+		q.Tail.Next = node
+		node.Prev = q.Tail
+		q.Tail = node
 	}
+
+	q.sockets[socket] = node
 }
 
 type QueueManager struct {
@@ -57,12 +72,21 @@ type QueueManager struct {
 
 func NewQueueManager() *QueueManager {
 	return &QueueManager{
-		queue: &Queue{},
-		mut:   new(sync.Mutex),
+		mut: new(sync.Mutex),
+		queue: &Queue{
+			sockets: make(map[*websocket.Conn]*Node),
+		},
 	}
 }
 
 func (q *QueueManager) Process(event Event, server *Server) {
+	if event.Type == "dequeue" {
+		q.mut.Lock()
+		defer q.mut.Unlock()
+
+		q.queue.Remove(event.Socket)
+	}
+
 	if event.Type == "queue_up" {
 		q.mut.Lock()
 		defer q.mut.Unlock()
