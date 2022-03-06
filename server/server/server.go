@@ -48,7 +48,7 @@ func (s *Server) HandleRequest(w http.ResponseWriter, r *http.Request) {
 			err := c.ReadJSON(&msg)
 
 			if err != nil {
-				continue
+				break
 			}
 
 			s.Dispatch(NewEvent(msg, c))
