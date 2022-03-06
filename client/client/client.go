@@ -53,9 +53,9 @@ func (s *WaitingForMatch) Execute(client *Client) {
 	case choice := <-ReadInput():
 		switch choice {
 		case "cancel\n":
-            client.Send(Message{
-                Type: "dequeue",
-            })
+			client.Send(Message{
+				Type: "dequeue",
+			})
 			client.SetState(&IdleState{})
 		}
 	case msg := <-client.Incoming:
@@ -125,7 +125,7 @@ func (s *MatchConfirmedState) Execute(client *Client) {
 		log.Println("Match canceled")
 		client.SetState(&WaitingForMatch{})
 	case "guess":
-        log.Println("Guess a number")
+		log.Println("Guess a number")
 		client.SetState(&PlayingState{
 			GameId: int(msg.Payload["GameId"].(float64)),
 		})

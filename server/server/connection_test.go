@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-    "example.com/game/client/client"
+	"example.com/game/client/client"
 )
 
 func TestAcceptsConnections(t *testing.T) {
