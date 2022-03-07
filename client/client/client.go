@@ -2,7 +2,7 @@ package client
 
 import (
 	"bufio"
-	"log"
+	"fmt"
 	"os"
 
 	"github.com/gorilla/websocket"
@@ -33,7 +33,7 @@ type State interface {
 type IdleState struct{}
 
 func (s *IdleState) Execute(client *Client) {
-	log.Println("What to do?")
+	fmt.Println("Type \"play\" or \"quit\"")
 
 	switch <-ReadInput() {
 	case "play\n":
@@ -41,8 +41,10 @@ func (s *IdleState) Execute(client *Client) {
 			Type: "queue_up",
 		})
 		client.SetState(&WaitingForMatch{})
+	case "quit\n":
+		client.Close()
 	default:
-		log.Println("Invalid option")
+		fmt.Println("Invalid option")
 	}
 }
 
@@ -61,14 +63,14 @@ func (s *WaitingForMatch) Execute(client *Client) {
 	case msg := <-client.Incoming:
 		switch msg.Type {
 		case "wait_for_match":
-			log.Println("Waiting for match... type \"cancel\" to leave")
+			fmt.Println("Waiting for match... type \"cancel\" to leave")
 		case "match_found":
 			matchId := int(msg.Payload["matchId"].(float64))
 			client.SetState(&MatchFoundState{
 				MatchId: matchId,
 			})
 		default:
-			log.Println("weird type", msg)
+			fmt.Println("weird type", msg)
 		}
 	}
 }
@@ -78,16 +80,16 @@ type MatchFoundState struct {
 }
 
 func (s *MatchFoundState) Execute(client *Client) {
-	log.Println("Match found. Type \"accept\" or \"decline\"")
+	fmt.Println("Match found. Type \"accept\" or \"decline\"")
 
 	select {
 	case msg := <-client.Incoming:
 		switch msg.Type {
 		case "match_canceled":
-			log.Println("Match canceled")
+			fmt.Println("Match canceled")
 			client.SetState(&IdleState{})
 		default:
-			log.Println("nope", msg)
+			fmt.Println("nope", msg)
 		}
 	case choice := <-ReadInput():
 		switch choice {
@@ -108,7 +110,7 @@ func (s *MatchFoundState) Execute(client *Client) {
 			})
 			client.SetState(&IdleState{})
 		default:
-			log.Println("unexpected", choice)
+			fmt.Println("unexpected", choice)
 		}
 	}
 }
@@ -120,12 +122,12 @@ func (s *MatchConfirmedState) Execute(client *Client) {
 
 	switch msg.Type {
 	case "wait_for_players":
-		log.Println("Waiting for players...")
+		fmt.Println("Waiting for players...")
 	case "match_canceled":
-		log.Println("Match canceled")
+		fmt.Println("Match canceled")
 		client.SetState(&WaitingForMatch{})
 	case "guess":
-		log.Println("Guess a number")
+		fmt.Println("Guess a number")
 		client.SetState(&PlayingState{
 			GameId: int(msg.Payload["GameId"].(float64)),
 		})
@@ -149,27 +151,32 @@ func (s *PlayingState) Execute(client *Client) {
 	case msg := <-client.Incoming:
 		switch msg.Type {
 		case "feedback":
-			log.Println(msg.Payload["message"].(string))
+			fmt.Println(msg.Payload["message"].(string))
 		case "victory":
-			log.Println("Correct! You won!")
+			fmt.Println("Correct! You won!")
 			client.SetState(&IdleState{})
 		case "loss":
 			answer := msg.Payload["answer"]
-			log.Printf("You lost. The number was %v", answer)
+			fmt.Printf("You lost. The number was %v\n", answer)
 			client.SetState(&IdleState{})
 		}
 	}
 }
 
 type Client struct {
-	state    State
+	state  State
+	socket *websocket.Conn
+
+	Running  bool
 	Outgoing chan Message
 	Incoming chan Message
 }
 
 func NewClient() *Client {
 	return &Client{
-		state:    &IdleState{},
+		state: &IdleState{},
+
+		Running:  true,
 		Outgoing: make(chan Message),
 		Incoming: make(chan Message),
 	}
@@ -180,7 +187,7 @@ func (c *Client) SetState(state State) {
 }
 
 func (c *Client) Loop() {
-	for {
+	for c.Running {
 		c.state.Execute(c)
 	}
 }
@@ -192,6 +199,8 @@ func (c *Client) Connect(addr string) error {
 		return err
 	}
 
+	c.socket = socket
+
 	go func() {
 		defer socket.Close()
 
@@ -201,7 +210,9 @@ func (c *Client) Connect(addr string) error {
 				err := socket.ReadJSON(&response)
 
 				if err != nil {
-					continue
+                    fmt.Println("Server closed, disconnecting...")
+					c.Close()
+					break
 				}
 
 				c.Incoming <- response
@@ -222,4 +233,9 @@ func (c *Client) Connect(addr string) error {
 
 func (c *Client) Send(message Message) {
 	c.Outgoing <- message
+}
+
+func (c *Client) Close() {
+	c.socket.Close()
+	c.Running = false
 }
