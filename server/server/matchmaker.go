@@ -193,7 +193,7 @@ func (m *MatchMaker) Process(event Event, server *Server) {
 		if match != nil {
 			m.RemoveMatch(match)
 			match.Cancel(server.Dispatch)
-            match.Ready <- false
+			match.Ready <- false
 		}
 
 	case "match_found":
@@ -230,7 +230,7 @@ func (m *MatchMaker) Process(event Event, server *Server) {
 		if err == nil {
 			m.RemoveMatch(match)
 			match.Cancel(server.Dispatch)
-            match.Ready <- false
+			match.Ready <- false
 		}
 	}
 }
