@@ -17,8 +17,8 @@ var result = make(chan string)
 
 func ReadInput() chan string {
 	go func() {
-        // some goroutines are going rogue when there is a timeout
-        // since I couldn't figure out how to cancel the read
+		// some goroutines are going rogue when there is a timeout
+		// since I couldn't figure out how to cancel the read
 		scanner := bufio.NewScanner(os.Stdin)
 		if scanner.Scan() {
 			result <- scanner.Text()
