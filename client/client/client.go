@@ -17,10 +17,12 @@ var result = make(chan string)
 
 func ReadInput() chan string {
 	go func() {
-		reader := bufio.NewReader(os.Stdin)
-		text, _ := reader.ReadString('\n')
-
-		result <- text
+        // some goroutines are going rogue when there is a timeout
+        // since I couldn't figure out how to cancel the read
+		scanner := bufio.NewScanner(os.Stdin)
+		if scanner.Scan() {
+			result <- scanner.Text()
+		}
 	}()
 
 	return result
@@ -36,12 +38,12 @@ func (s *IdleState) Execute(client *Client) {
 	fmt.Println("Type \"play\" or \"quit\"")
 
 	switch <-ReadInput() {
-	case "play\n":
+	case "play":
 		client.Send(Message{
 			Type: "queue_up",
 		})
 		client.SetState(&WaitingForMatch{})
-	case "quit\n":
+	case "quit":
 		client.Close()
 	default:
 		fmt.Println("Invalid option")
@@ -54,7 +56,7 @@ func (s *WaitingForMatch) Execute(client *Client) {
 	select {
 	case choice := <-ReadInput():
 		switch choice {
-		case "cancel\n":
+		case "cancel":
 			client.Send(Message{
 				Type: "dequeue",
 			})
@@ -93,7 +95,7 @@ func (s *MatchFoundState) Execute(client *Client) {
 		}
 	case choice := <-ReadInput():
 		switch choice {
-		case "accept\n":
+		case "accept":
 			client.Send(Message{
 				Type: "match_confirmed",
 				Payload: map[string]interface{}{
@@ -101,7 +103,7 @@ func (s *MatchFoundState) Execute(client *Client) {
 				},
 			})
 			client.SetState(&MatchConfirmedState{})
-		case "decline\n":
+		case "decline":
 			client.Send(Message{
 				Type: "match_declined",
 				Payload: map[string]interface{}{
