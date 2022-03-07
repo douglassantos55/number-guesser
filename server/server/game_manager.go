@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/gorilla/websocket"
 )
 
 type GameManager struct {
@@ -44,7 +46,29 @@ func (g *GameManager) FindGame(id int) (*Game, error) {
 	return game, nil
 }
 
+func (g *GameManager) FindGameWithSocket(socket *websocket.Conn) *Game {
+	for _, game := range g.Games {
+		if game.Players.Has(socket) {
+			return game
+		}
+	}
+	return nil
+}
+
 func (g *GameManager) Process(event Event, server *Server) {
+	if event.Type == "disconnected" {
+		game := g.FindGameWithSocket(event.Socket)
+
+		if game != nil {
+			g.RemoveGame(game)
+			game.Players.Send(Message{
+				Type: "victory",
+				Payload: map[string]interface{}{
+					"message": "You won. The other player disconnected.",
+				},
+			})
+		}
+	}
 	if event.Type == "game_start" {
 		// create a game instance
 		players := event.Payload["players"].(*Sockets)

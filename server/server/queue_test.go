@@ -227,15 +227,15 @@ func TestRemoveLast(t *testing.T) {
 	if queue.Tail.Next != nil {
 		t.Error("Expected tail next to point to nil")
 	}
-    if queue.Tail.Socket != middle {
-        t.Error("Expected tail to be middle")
-    }
+	if queue.Tail.Socket != middle {
+		t.Error("Expected tail to be middle")
+	}
 	if queue.Head.Next != queue.Tail {
 		t.Error("Expected head next to point to tail")
 	}
-    if queue.Head.Socket != first {
-        t.Error("Expected head to point to first")
-    }
+	if queue.Head.Socket != first {
+		t.Error("Expected head to point to first")
+	}
 }
 
 func TestQueueCommand(t *testing.T) {
@@ -247,7 +247,7 @@ func TestQueueCommand(t *testing.T) {
 
 	go server.Listen("0.0.0.0:8080")
 
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(time.Millisecond)
 
 	c := NewTestClient()
 	response := c.QueueUp()
@@ -265,7 +265,7 @@ func TestQueuesUser(t *testing.T) {
 	defer server.Close()
 	go server.Listen("0.0.0.0:8080")
 
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(time.Millisecond)
 
 	c := NewTestClient()
 	c.QueueUp()
@@ -296,7 +296,7 @@ func TestDispatchesMatchFound(t *testing.T) {
 	defer server.Close()
 	go server.Listen("0.0.0.0:8080")
 
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(time.Millisecond)
 
 	c1 := NewTestClient()
 	c2 := NewTestClient()
@@ -306,5 +306,29 @@ func TestDispatchesMatchFound(t *testing.T) {
 
 	if fakeMaker.Invoked != 1 {
 		t.Errorf("Expected match found to be dispatched, got %d", fakeMaker.Invoked)
+	}
+}
+
+func TestDisconnectRemovesFromQueue(t *testing.T) {
+	queueManager := NewQueueManager()
+
+	server := NewServer([]EventHandler{
+		queueManager,
+	})
+	defer server.Close()
+	go server.Listen("0.0.0.0:8080")
+
+	time.Sleep(time.Millisecond)
+
+	c1 := NewTestClient()
+	c1.QueueUp()
+
+	c1.Client.Close()
+
+	// TODO: How to not do this?
+	time.Sleep(time.Millisecond)
+
+	if len(queueManager.queue.sockets) != 0 {
+		t.Errorf("Expected queue to have count 0, got %d", len(queueManager.queue.sockets))
 	}
 }

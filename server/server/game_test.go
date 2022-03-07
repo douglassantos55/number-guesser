@@ -62,3 +62,42 @@ func TestGame(t *testing.T) {
 		t.Errorf("Expected \"loss\", got \"%v\"", defeat.Type)
 	}
 }
+
+func TestDisconnectEndsGame(t *testing.T) {
+	server := NewServer([]EventHandler{
+		NewQueueManager(),
+		NewGameManager(),
+		NewMatchMaker(200 * time.Millisecond),
+	})
+
+	defer server.Close()
+	go server.Listen("0.0.0.0:8080")
+
+	time.Sleep(100 * time.Millisecond)
+
+	c1 := NewTestClient()
+	c2 := NewTestClient()
+
+	c1.QueueUp() // wait_for_match
+	c2.QueueUp() // wait_for_match
+
+	c1.GetIncoming() // skips match_found
+	c2.GetIncoming() // skips match_found
+
+	c1.AcceptMatch(1) // wait_for_players
+	c2.AcceptMatch(1) // wait_for_players
+
+	c2.Client.Close()
+
+	time.Sleep(time.Millisecond)
+
+	c1.GetIncoming()        // guess
+	res := c1.GetIncoming() // victory
+
+	if res.Type != "victory" {
+		t.Errorf("Expected \"victory\", got \"%s\"", res.Type)
+	}
+	if res.Payload["message"].(string) != "You won. The other player disconnected." {
+		t.Errorf("Expected other player disconnected message, got \"%s\"", res.Payload["message"].(string))
+	}
+}

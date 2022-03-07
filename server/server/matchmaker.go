@@ -3,7 +3,6 @@ package server
 import (
 	"errors"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
@@ -64,6 +63,15 @@ func (s *Sockets) Count() int {
 	return len(s.conns)
 }
 
+func (s *Sockets) Has(conn *websocket.Conn) bool {
+	for _, socket := range s.conns {
+		if socket.conn == conn {
+			return true
+		}
+	}
+	return false
+}
+
 type Match struct {
 	Id        int
 	Players   *Sockets
@@ -101,7 +109,6 @@ func (m *Match) WaitForConfirmation(timeout time.Duration, dispatch func(event E
 			})
 		}
 	case <-time.After(timeout):
-		log.Println("timeout")
 		m.Cancel(dispatch)
 	}
 }
@@ -114,7 +121,6 @@ func (m *Match) Cancel(dispatch func(event Event)) {
 		},
 	})
 
-	//m.Ready <- false
 	m.RequeueConfirmed(dispatch)
 }
 
@@ -170,8 +176,27 @@ func (m *MatchMaker) FindMatch(matchId int) (*Match, error) {
 	return match, nil
 }
 
+func (m *MatchMaker) FindMatchWithSocket(socket *websocket.Conn) *Match {
+	for _, match := range m.matches {
+		if match.Players.Has(socket) {
+			return match
+		}
+	}
+	return nil
+}
+
 func (m *MatchMaker) Process(event Event, server *Server) {
-	if event.Type == "match_found" {
+	switch event.Type {
+	case "disconnected":
+		match := m.FindMatchWithSocket(event.Socket)
+
+		if match != nil {
+			m.RemoveMatch(match)
+			match.Cancel(server.Dispatch)
+            match.Ready <- false
+		}
+
+	case "match_found":
 		m.currentId = m.currentId + 1
 		players := event.Payload["players"].([]*websocket.Conn)
 
@@ -180,9 +205,8 @@ func (m *MatchMaker) Process(event Event, server *Server) {
 
 		match.AskForConfirmation()
 		go match.WaitForConfirmation(m.timeout, server.Dispatch)
-	}
 
-	if event.Type == "match_confirmed" {
+	case "match_confirmed":
 		matchId := int(event.Payload["matchId"].(float64))
 		match, err := m.FindMatch(matchId)
 
@@ -198,16 +222,15 @@ func (m *MatchMaker) Process(event Event, server *Server) {
 				m.RemoveMatch(match)
 			}
 		}
-	}
 
-	if event.Type == "match_declined" {
+	case "match_declined":
 		matchId := int(event.Payload["matchId"].(float64))
 		match, err := m.FindMatch(matchId)
 
 		if err == nil {
 			m.RemoveMatch(match)
 			match.Cancel(server.Dispatch)
-			match.Ready <- false
+            match.Ready <- false
 		}
 	}
 }

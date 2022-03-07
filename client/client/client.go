@@ -153,11 +153,10 @@ func (s *PlayingState) Execute(client *Client) {
 		case "feedback":
 			fmt.Println(msg.Payload["message"].(string))
 		case "victory":
-			fmt.Println("Correct! You won!")
+			fmt.Println(msg.Payload["message"].(string))
 			client.SetState(&IdleState{})
 		case "loss":
-			answer := msg.Payload["answer"]
-			fmt.Printf("You lost. The number was %v\n", answer)
+			fmt.Println(msg.Payload["message"].(string))
 			client.SetState(&IdleState{})
 		}
 	}
@@ -210,7 +209,7 @@ func (c *Client) Connect(addr string) error {
 				err := socket.ReadJSON(&response)
 
 				if err != nil {
-                    fmt.Println("Server closed, disconnecting...")
+					fmt.Println("Server closed, disconnecting...")
 					c.Close()
 					break
 				}

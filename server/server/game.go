@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"math/rand"
 )
 
@@ -49,13 +50,16 @@ func (g *Game) End(winner *Socket) {
 			player.Send(Message{
 				Type: "loss",
 				Payload: map[string]interface{}{
-					"answer": g.Answer,
+					"message": fmt.Sprintf("You lost. The number was %d", g.Answer),
 				},
 			})
 		} else {
 			// send victory to winner
 			winner.Send(Message{
 				Type: "victory",
+				Payload: map[string]interface{}{
+					"message": "Correct! You won!",
+				},
 			})
 		}
 	}

@@ -14,7 +14,7 @@ func TestMatchFound(t *testing.T) {
 	defer server.Close()
 	go server.Listen("0.0.0.0:8080")
 
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(time.Millisecond)
 
 	c1 := NewTestClient()
 	c2 := NewTestClient()
@@ -52,7 +52,7 @@ func TestConfirmsMatch(t *testing.T) {
 	defer server.Close()
 	go server.Listen("0.0.0.0:8080")
 
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(time.Millisecond)
 
 	c1 := NewTestClient()
 	c2 := NewTestClient()
@@ -106,7 +106,7 @@ func TestDenyMatch(t *testing.T) {
 	defer server.Close()
 	go server.Listen("0.0.0.0:8080")
 
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(time.Millisecond)
 
 	c1 := NewTestClient()
 	c2 := NewTestClient()
@@ -139,16 +139,88 @@ func TestTimeout(t *testing.T) {
 	c1 := NewTestClient()
 	c2 := NewTestClient()
 
-	c1.QueueUp()
-	c2.QueueUp()
+	c1.QueueUp() // wait_for_match
+	c2.QueueUp() // wait_for_match
 
 	c1.AcceptMatch(1) // match found
 
 	c1.GetIncoming() // wait_for_players
 	c1.GetIncoming() // match_declined
-	res2 := c1.GetIncoming()
 
+	time.Sleep(time.Millisecond)
+
+	res2 := c1.GetIncoming()
 	if res2.Type != "wait_for_match" {
 		t.Errorf("Expected \"wait_for_match\", got %v", res2.Type)
+	}
+}
+
+func TestDisconnectCancelsMatch(t *testing.T) {
+	matchMaker := NewMatchMaker(100 * time.Millisecond)
+
+	server := NewServer([]EventHandler{
+		NewQueueManager(),
+		matchMaker,
+	})
+	defer server.Close()
+	go server.Listen("0.0.0.0:8080")
+
+	time.Sleep(time.Millisecond)
+
+	c1 := NewTestClient()
+	c2 := NewTestClient()
+
+	c1.QueueUp() // wait for match
+	c2.QueueUp() // wait for match
+
+	c1.AcceptMatch(1) // match found
+	c1.Client.Close()
+
+	time.Sleep(time.Millisecond)
+
+	c2.GetIncoming() // match found
+	res := c2.GetIncoming()
+
+	if res.Type != "match_canceled" {
+		t.Errorf("Expected \"match_canceled\", got \"%s\"", res.Type)
+	}
+	if len(matchMaker.matches) != 0 {
+		t.Errorf("Expected matches to have count 0, got %d", len(matchMaker.matches))
+	}
+}
+
+func TestDisconnectRequeuesConfirmed(t *testing.T) {
+	matchMaker := NewMatchMaker(100 * time.Millisecond)
+
+	server := NewServer([]EventHandler{
+		NewQueueManager(),
+		matchMaker,
+	})
+	defer server.Close()
+	go server.Listen("0.0.0.0:8080")
+
+	time.Sleep(time.Millisecond)
+
+	c1 := NewTestClient()
+	c2 := NewTestClient()
+
+	c1.QueueUp() // wait for match
+	c2.QueueUp() // wait for match
+
+	c1.AcceptMatch(1) // match found
+	c2.Client.Close()
+
+	time.Sleep(time.Millisecond)
+
+	c1.GetIncoming() // wait_for_players
+	c1.GetIncoming() // match_canceled
+
+	res := c1.GetIncoming() // wait_for_match
+
+	if res.Type != "wait_for_match" {
+		t.Errorf("Expected \"wait_for_match\", got \"%s\"", res.Type)
+	}
+	if len(matchMaker.matches) != 0 {
+		t.Errorf("Expected matches to have count 0, got %d", len(matchMaker.matches))
 	}
 }

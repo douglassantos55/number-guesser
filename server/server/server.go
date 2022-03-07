@@ -48,6 +48,10 @@ func (s *Server) HandleRequest(w http.ResponseWriter, r *http.Request) {
 			err := c.ReadJSON(&msg)
 
 			if err != nil {
+				s.Dispatch(Event{
+					Socket: c,
+					Type:   "disconnected",
+				})
 				break
 			}
 

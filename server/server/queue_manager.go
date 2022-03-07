@@ -31,11 +31,11 @@ func (q *Queue) Count() int {
 }
 
 func (q *Queue) Pop() *websocket.Conn {
-    q.mut.Lock()
+	q.mut.Lock()
 
 	if q.Head != nil {
 		socket := q.Head.Socket
-        q.mut.Unlock()
+		q.mut.Unlock()
 		q.Remove(socket)
 
 		return socket
@@ -50,23 +50,25 @@ func (q *Queue) Remove(socket *websocket.Conn) {
 
 	node := q.sockets[socket]
 
-	if node.Prev != nil {
-		node.Prev.Next = node.Next
+	if node != nil {
+		if node.Prev != nil {
+			node.Prev.Next = node.Next
 
-		if node.Next == nil {
-			q.Tail = node.Prev
+			if node.Next == nil {
+				q.Tail = node.Prev
+			} else {
+				node.Next.Prev = node.Prev
+			}
+		} else if node.Next != nil {
+			node.Next.Prev = nil
+			q.Head = node.Next
 		} else {
-			node.Next.Prev = node.Prev
+			q.Head = nil
+			q.Tail = nil
 		}
-	} else if node.Next != nil {
-		node.Next.Prev = nil
-		q.Head = node.Next
-	} else {
-		q.Head = nil
-		q.Tail = nil
-	}
 
-	delete(q.sockets, socket)
+		delete(q.sockets, socket)
+	}
 }
 
 func (q *Queue) Push(socket *websocket.Conn) {
@@ -103,11 +105,10 @@ func NewQueueManager() *QueueManager {
 }
 
 func (q *QueueManager) Process(event Event, server *Server) {
-	if event.Type == "dequeue" {
+	switch event.Type {
+	case "dequeue", "disconnected":
 		q.queue.Remove(event.Socket)
-	}
-
-	if event.Type == "queue_up" {
+	case "queue_up":
 		q.queue.Push(event.Socket)
 
 		event.Socket.WriteJSON(client.Message{
