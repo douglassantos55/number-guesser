@@ -56,7 +56,8 @@ func (g *GameManager) FindGameWithSocket(socket *websocket.Conn) *Game {
 }
 
 func (g *GameManager) Process(event Event, server *Server) {
-	if event.Type == "disconnected" {
+	switch event.Type {
+	case "disconnected":
 		game := g.FindGameWithSocket(event.Socket)
 
 		if game != nil {
@@ -68,8 +69,8 @@ func (g *GameManager) Process(event Event, server *Server) {
 				},
 			})
 		}
-	}
-	if event.Type == "game_start" {
+
+	case "game_start":
 		// create a game instance
 		players := event.Payload["players"].(*Sockets)
 		game := NewGame(players)
@@ -77,9 +78,8 @@ func (g *GameManager) Process(event Event, server *Server) {
 		log.Println("answer", game.Answer)
 		g.AddGame(game)
 		game.Start()
-	}
 
-	if event.Type == "guess" {
+	case "guess":
 		// get game
 		gameId := int(event.Payload["gameId"].(float64))
 
