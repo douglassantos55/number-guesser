@@ -3,9 +3,12 @@ package server
 import (
 	"fmt"
 	"math/rand"
+	"sync"
 )
 
 type Game struct {
+	mutex *sync.Mutex
+
 	Id      int
 	Answer  int
 	Done    bool
@@ -14,6 +17,8 @@ type Game struct {
 
 func NewGame(players *Sockets) *Game {
 	return &Game{
+		mutex: new(sync.Mutex),
+
 		Id:      rand.Intn(1000),
 		Done:    false,
 		Players: players,
@@ -22,6 +27,9 @@ func NewGame(players *Sockets) *Game {
 }
 
 func (g *Game) Start() {
+	g.mutex.Lock()
+	defer g.mutex.Unlock()
+
 	// send guess for both players
 	g.Players.Send(Message{
 		Type: "guess",
@@ -32,6 +40,9 @@ func (g *Game) Start() {
 }
 
 func (g *Game) CheckGuess(guess int, player *Socket) bool {
+	g.mutex.Lock()
+	defer g.mutex.Unlock()
+
 	// if guess = Answer, end game
 	if guess == g.Answer {
 		g.End(player)

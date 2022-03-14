@@ -4,7 +4,9 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"sync"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
 
@@ -166,8 +168,10 @@ func (s *PlayingState) Execute(client *Client) {
 
 type Client struct {
 	state  State
+	mutex  *sync.Mutex
 	socket *websocket.Conn
 
+	Id       uuid.UUID
 	Running  bool
 	Outgoing chan Message
 	Incoming chan Message
@@ -175,8 +179,10 @@ type Client struct {
 
 func NewClient() *Client {
 	return &Client{
+		mutex: new(sync.Mutex),
 		state: &IdleState{},
 
+		Id:       uuid.New(),
 		Running:  true,
 		Outgoing: make(chan Message),
 		Incoming: make(chan Message),
@@ -211,7 +217,6 @@ func (c *Client) Connect(addr string) error {
 				err := socket.ReadJSON(&response)
 
 				if err != nil {
-					fmt.Println("Server closed, disconnecting...")
 					c.Close()
 					break
 				}
@@ -233,10 +238,16 @@ func (c *Client) Connect(addr string) error {
 }
 
 func (c *Client) Send(message Message) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
 	c.Outgoing <- message
 }
 
 func (c *Client) Close() {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
 	c.socket.Close()
 	c.Running = false
 }

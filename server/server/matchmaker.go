@@ -14,14 +14,21 @@ type Connection interface {
 }
 
 type Socket struct {
-	conn *websocket.Conn
+	conn  *websocket.Conn
+	mutex *sync.Mutex
 }
 
 func NewSocket(conn *websocket.Conn) *Socket {
-	return &Socket{conn: conn}
+	return &Socket{
+		conn:  conn,
+		mutex: new(sync.Mutex),
+	}
 }
 
 func (s *Socket) Send(msg Message) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
 	s.conn.WriteJSON(msg)
 }
 
@@ -44,6 +51,9 @@ func NewSockets(conns []*websocket.Conn) *Sockets {
 }
 
 func (s *Sockets) Send(msg Message) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
 	for _, socket := range s.conns {
 		socket.Send(msg)
 	}
@@ -60,10 +70,16 @@ func (s *Sockets) Add(conn *websocket.Conn) *Socket {
 }
 
 func (s *Sockets) Count() int {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
 	return len(s.conns)
 }
 
 func (s *Sockets) Has(conn *websocket.Conn) bool {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
 	for _, socket := range s.conns {
 		if socket.conn == conn {
 			return true
@@ -73,6 +89,8 @@ func (s *Sockets) Has(conn *websocket.Conn) bool {
 }
 
 type Match struct {
+	mutex *sync.Mutex
+
 	Id        int
 	Players   *Sockets
 	Confirmed *Sockets
@@ -81,6 +99,8 @@ type Match struct {
 
 func NewMatch(id int, players *Sockets) *Match {
 	return &Match{
+		mutex: new(sync.Mutex),
+
 		Id:        id,
 		Players:   players,
 		Ready:     make(chan bool),
@@ -89,6 +109,9 @@ func NewMatch(id int, players *Sockets) *Match {
 }
 
 func (m *Match) AskForConfirmation() {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
 	m.Players.Send(Message{
 		Type: "match_found",
 		Payload: map[string]interface{}{
@@ -114,6 +137,9 @@ func (m *Match) WaitForConfirmation(timeout time.Duration, dispatch func(event E
 }
 
 func (m *Match) Cancel(dispatch func(event Event)) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
 	m.Players.Send(Message{
 		Type: "match_canceled",
 		Payload: map[string]interface{}{
@@ -133,6 +159,24 @@ func (m *Match) RequeueConfirmed(dispatch func(event Event)) {
 	}
 }
 
+func (m *Match) AddConfirmed(conn *websocket.Conn) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	socket := m.Confirmed.Add(conn)
+
+	socket.Send(Message{
+		Type: "wait_for_players",
+	})
+}
+
+func (m *Match) CountConfirmed() int {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	return m.Confirmed.Count()
+}
+
 type MatchMaker struct {
 	currentId int
 	timeout   time.Duration
@@ -149,11 +193,15 @@ func NewMatchMaker(timeout time.Duration) *MatchMaker {
 	}
 }
 
-func (m *MatchMaker) AddMatch(match *Match) {
+func (m *MatchMaker) AddMatch(players *Sockets) *Match {
 	m.mut.Lock()
 	defer m.mut.Unlock()
 
-	m.matches[match.Id] = match
+	m.currentId = m.currentId + 1
+	match := NewMatch(m.currentId, players)
+	m.matches[m.currentId] = match
+
+	return match
 }
 
 func (m *MatchMaker) RemoveMatch(match *Match) {
@@ -177,12 +225,23 @@ func (m *MatchMaker) FindMatch(matchId int) (*Match, error) {
 }
 
 func (m *MatchMaker) FindMatchWithSocket(socket *websocket.Conn) *Match {
+	m.mut.Lock()
+	defer m.mut.Unlock()
+
 	for _, match := range m.matches {
 		if match.Players.Has(socket) {
 			return match
 		}
 	}
 	return nil
+}
+
+// Returns the current number of matches pending
+func (m *MatchMaker) Count() int {
+	m.mut.Lock()
+	defer m.mut.Unlock()
+
+	return len(m.matches)
 }
 
 func (m *MatchMaker) Process(event Event, server *Server) {
@@ -197,11 +256,8 @@ func (m *MatchMaker) Process(event Event, server *Server) {
 		}
 
 	case "match_found":
-		m.currentId = m.currentId + 1
 		players := event.Payload["players"].([]*websocket.Conn)
-
-		match := NewMatch(m.currentId, NewSockets(players))
-		m.AddMatch(match)
+		match := m.AddMatch(NewSockets(players))
 
 		match.AskForConfirmation()
 		go match.WaitForConfirmation(m.timeout, server.Dispatch)
@@ -211,13 +267,9 @@ func (m *MatchMaker) Process(event Event, server *Server) {
 		match, err := m.FindMatch(matchId)
 
 		if err == nil {
-			player := match.Confirmed.Add(event.Socket)
+			match.AddConfirmed(event.Socket)
 
-			player.Send(Message{
-				Type: "wait_for_players",
-			})
-
-			if match.Confirmed.Count() == NUM_OF_PLAYERS {
+			if match.CountConfirmed() == NUM_OF_PLAYERS {
 				match.Ready <- true
 				m.RemoveMatch(match)
 			}

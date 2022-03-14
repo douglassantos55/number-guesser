@@ -277,9 +277,20 @@ func TestQueuesUser(t *testing.T) {
 
 type FakeMatchMaker struct {
 	Invoked int
+	mutex   *sync.Mutex
+}
+
+func (m *FakeMatchMaker) Count() int {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	return m.Invoked
 }
 
 func (m *FakeMatchMaker) Process(event Event, server *Server) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
 	if event.Type == "match_found" {
 		m.Invoked += 1
 	}
@@ -287,7 +298,7 @@ func (m *FakeMatchMaker) Process(event Event, server *Server) {
 
 func TestDispatchesMatchFound(t *testing.T) {
 	queueManager := NewQueueManager()
-	fakeMaker := &FakeMatchMaker{0}
+	fakeMaker := &FakeMatchMaker{0, new(sync.Mutex)}
 
 	server := NewServer([]EventHandler{
 		queueManager,
@@ -304,8 +315,8 @@ func TestDispatchesMatchFound(t *testing.T) {
 	c1.QueueUp()
 	c2.QueueUp()
 
-	if fakeMaker.Invoked != 1 {
-		t.Errorf("Expected match found to be dispatched, got %d", fakeMaker.Invoked)
+	if fakeMaker.Count() != 1 {
+		t.Errorf("Expected match found to be dispatched, got %d", fakeMaker.Count())
 	}
 }
 
@@ -328,7 +339,7 @@ func TestDisconnectRemovesFromQueue(t *testing.T) {
 	// TODO: How to not do this?
 	time.Sleep(time.Millisecond)
 
-	if len(queueManager.queue.sockets) != 0 {
+	if queueManager.queue.Count() != 0 {
 		t.Errorf("Expected queue to have count 0, got %d", len(queueManager.queue.sockets))
 	}
 }

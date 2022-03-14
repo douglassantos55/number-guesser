@@ -81,7 +81,7 @@ func TestConfirmsMatch(t *testing.T) {
 	}
 
 	if match, _ := matchMaker.FindMatch(1); match != nil {
-		t.Errorf("Expected match to be resolved %v", matchMaker.matches)
+		t.Errorf("Expected match to be resolved %v", matchMaker.Count())
 	}
 
 	res1 := c1.GetIncoming()
@@ -184,7 +184,7 @@ func TestDisconnectCancelsMatch(t *testing.T) {
 	if res.Type != "match_canceled" {
 		t.Errorf("Expected \"match_canceled\", got \"%s\"", res.Type)
 	}
-	if len(matchMaker.matches) != 0 {
+	if matchMaker.Count() != 0 {
 		t.Errorf("Expected matches to have count 0, got %d", len(matchMaker.matches))
 	}
 }

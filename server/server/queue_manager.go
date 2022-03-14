@@ -3,7 +3,6 @@ package server
 import (
 	"sync"
 
-	"example.com/game/client/client"
 	"github.com/gorilla/websocket"
 )
 
@@ -111,7 +110,7 @@ func (q *QueueManager) Process(event Event, server *Server) {
 	case "queue_up":
 		q.queue.Push(event.Socket)
 
-		event.Socket.WriteJSON(client.Message{
+		NewSocket(event.Socket).Send(Message{
 			Type: "wait_for_match",
 		})
 

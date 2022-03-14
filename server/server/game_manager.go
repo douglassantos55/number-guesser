@@ -3,7 +3,6 @@ package server
 import (
 	"errors"
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
 	"sync"
@@ -23,21 +22,34 @@ func NewGameManager() *GameManager {
 	}
 }
 
-func (g *GameManager) AddGame(game *Game) {
+func (g *GameManager) AddGame(players *Sockets) *Game {
 	g.mut.Lock()
 	defer g.mut.Unlock()
 
+	game := NewGame(players)
 	g.Games[game.Id] = game
+
+	return game
 }
 
 func (g *GameManager) RemoveGame(game *Game) {
 	g.mut.Lock()
 	defer g.mut.Unlock()
 
+	game.Players.Send(Message{
+		Type: "victory",
+		Payload: map[string]interface{}{
+			"message": "You won. The other player disconnected.",
+		},
+	})
+
 	delete(g.Games, game.Id)
 }
 
 func (g *GameManager) FindGame(id int) (*Game, error) {
+	g.mut.Lock()
+	defer g.mut.Unlock()
+
 	game, ok := g.Games[id]
 
 	if !ok {
@@ -47,11 +59,15 @@ func (g *GameManager) FindGame(id int) (*Game, error) {
 }
 
 func (g *GameManager) FindGameWithSocket(socket *websocket.Conn) *Game {
+	g.mut.Lock()
+	defer g.mut.Unlock()
+
 	for _, game := range g.Games {
 		if game.Players.Has(socket) {
 			return game
 		}
 	}
+
 	return nil
 }
 
@@ -62,21 +78,11 @@ func (g *GameManager) Process(event Event, server *Server) {
 
 		if game != nil {
 			g.RemoveGame(game)
-			game.Players.Send(Message{
-				Type: "victory",
-				Payload: map[string]interface{}{
-					"message": "You won. The other player disconnected.",
-				},
-			})
 		}
 
 	case "game_start":
-		// create a game instance
 		players := event.Payload["players"].(*Sockets)
-		game := NewGame(players)
-
-		log.Println("answer", game.Answer)
-		g.AddGame(game)
+		game := g.AddGame(players)
 		game.Start()
 
 	case "guess":
@@ -87,6 +93,7 @@ func (g *GameManager) Process(event Event, server *Server) {
 
 		if err == nil {
 			guess, _ := strconv.Atoi(strings.TrimSpace(event.Payload["guess"].(string)))
+
 			if game.CheckGuess(guess, NewSocket(event.Socket)) {
 				g.RemoveGame(game)
 			}
