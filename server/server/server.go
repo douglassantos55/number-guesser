@@ -34,28 +34,30 @@ func (s *Server) Close() {
 
 func (s *Server) HandleRequest(w http.ResponseWriter, r *http.Request) {
 	upgrader := websocket.Upgrader{}
-	c, err := upgrader.Upgrade(w, r, nil)
+	connection, err := upgrader.Upgrade(w, r, nil)
 
 	if err != nil {
 		return
 	}
 
+	socket := NewSocket(connection)
+
 	go func() {
-		defer c.Close()
+		defer socket.Close()
 
 		for {
 			var msg Message
-			err := c.ReadJSON(&msg)
+			err := connection.ReadJSON(&msg)
 
 			if err != nil {
 				s.Dispatch(Event{
-					Socket: c,
+					Socket: socket,
 					Type:   "disconnected",
 				})
 				break
 			}
 
-			s.Dispatch(NewEvent(msg, c))
+			s.Dispatch(NewEvent(msg, socket))
 		}
 	}()
 }

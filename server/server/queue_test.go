@@ -11,10 +11,10 @@ import (
 func TestPushEmpty(t *testing.T) {
 	queue := &Queue{
 		mut:     &sync.Mutex{},
-		sockets: make(map[*websocket.Conn]*Node),
+		sockets: make(map[*Socket]*Node),
 	}
 
-	socket := &websocket.Conn{}
+	socket := NewSocket(&websocket.Conn{})
 	queue.Push(socket)
 
 	if queue.Head == nil {
@@ -40,11 +40,11 @@ func TestPushEmpty(t *testing.T) {
 func TestPushNotEmpty(t *testing.T) {
 	queue := &Queue{
 		mut:     &sync.Mutex{},
-		sockets: make(map[*websocket.Conn]*Node),
+		sockets: make(map[*Socket]*Node),
 	}
 
-	first := &websocket.Conn{}
-	last := &websocket.Conn{}
+	first := NewSocket(&websocket.Conn{})
+	last := NewSocket(&websocket.Conn{})
 
 	queue.Push(first)
 	queue.Push(last)
@@ -69,12 +69,12 @@ func TestPushNotEmpty(t *testing.T) {
 func TestPushMultiple(t *testing.T) {
 	queue := &Queue{
 		mut:     &sync.Mutex{},
-		sockets: make(map[*websocket.Conn]*Node),
+		sockets: make(map[*Socket]*Node),
 	}
 
-	first := &websocket.Conn{}
-	middle := &websocket.Conn{}
-	last := &websocket.Conn{}
+	first := NewSocket(&websocket.Conn{})
+	middle := NewSocket(&websocket.Conn{})
+	last := NewSocket(&websocket.Conn{})
 
 	queue.Push(first)
 	queue.Push(middle)
@@ -106,7 +106,7 @@ func TestPushMultiple(t *testing.T) {
 func TestPopEmpty(t *testing.T) {
 	queue := &Queue{
 		mut:     &sync.Mutex{},
-		sockets: make(map[*websocket.Conn]*Node),
+		sockets: make(map[*Socket]*Node),
 	}
 
 	node := queue.Pop()
@@ -122,10 +122,10 @@ func TestPopEmpty(t *testing.T) {
 func TestPopSingle(t *testing.T) {
 	queue := &Queue{
 		mut:     &sync.Mutex{},
-		sockets: make(map[*websocket.Conn]*Node),
+		sockets: make(map[*Socket]*Node),
 	}
 
-	socket := &websocket.Conn{}
+	socket := NewSocket(&websocket.Conn{})
 	queue.Push(socket)
 
 	node := queue.Pop()
@@ -150,11 +150,11 @@ func TestPopSingle(t *testing.T) {
 func TestPopPair(t *testing.T) {
 	queue := &Queue{
 		mut:     &sync.Mutex{},
-		sockets: make(map[*websocket.Conn]*Node),
+		sockets: make(map[*Socket]*Node),
 	}
 
-	first := &websocket.Conn{}
-	last := &websocket.Conn{}
+	first := NewSocket(&websocket.Conn{})
+	last := NewSocket(&websocket.Conn{})
 
 	queue.Push(first)
 	queue.Push(last)
@@ -187,12 +187,12 @@ func TestPopPair(t *testing.T) {
 func TestRemoveMiddle(t *testing.T) {
 	queue := &Queue{
 		mut:     &sync.Mutex{},
-		sockets: make(map[*websocket.Conn]*Node),
+		sockets: make(map[*Socket]*Node),
 	}
 
-	first := &websocket.Conn{}
-	middle := &websocket.Conn{}
-	last := &websocket.Conn{}
+	first := NewSocket(&websocket.Conn{})
+	middle := NewSocket(&websocket.Conn{})
+	last := NewSocket(&websocket.Conn{})
 
 	queue.Push(first)
 	queue.Push(middle)
@@ -211,12 +211,12 @@ func TestRemoveMiddle(t *testing.T) {
 func TestRemoveLast(t *testing.T) {
 	queue := &Queue{
 		mut:     &sync.Mutex{},
-		sockets: make(map[*websocket.Conn]*Node),
+		sockets: make(map[*Socket]*Node),
 	}
 
-	first := &websocket.Conn{}
-	middle := &websocket.Conn{}
-	last := &websocket.Conn{}
+	first := NewSocket(&websocket.Conn{})
+	middle := NewSocket(&websocket.Conn{})
+	last := NewSocket(&websocket.Conn{})
 
 	queue.Push(first)
 	queue.Push(middle)

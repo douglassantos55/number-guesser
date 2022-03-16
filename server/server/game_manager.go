@@ -6,8 +6,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-
-	"github.com/gorilla/websocket"
 )
 
 type GameManager struct {
@@ -58,7 +56,7 @@ func (g *GameManager) FindGame(id int) (*Game, error) {
 	return game, nil
 }
 
-func (g *GameManager) FindGameWithSocket(socket *websocket.Conn) *Game {
+func (g *GameManager) FindGameWithSocket(socket *Socket) *Game {
 	g.mut.Lock()
 	defer g.mut.Unlock()
 
@@ -94,7 +92,7 @@ func (g *GameManager) Process(event Event, server *Server) {
 		if err == nil {
 			guess, _ := strconv.Atoi(strings.TrimSpace(event.Payload["guess"].(string)))
 
-			if game.CheckGuess(guess, NewSocket(event.Socket)) {
+			if game.CheckGuess(guess, event.Socket) {
 				g.RemoveGame(game)
 			}
 		}

@@ -2,8 +2,6 @@ package server
 
 import (
 	"sync"
-
-	"github.com/gorilla/websocket"
 )
 
 const NUM_OF_PLAYERS = 2
@@ -13,13 +11,13 @@ type Queue struct {
 	Tail *Node
 
 	mut     *sync.Mutex
-	sockets map[*websocket.Conn]*Node
+	sockets map[*Socket]*Node
 }
 
 type Node struct {
 	Next   *Node
 	Prev   *Node
-	Socket *websocket.Conn
+	Socket *Socket
 }
 
 func (q *Queue) Count() int {
@@ -29,7 +27,7 @@ func (q *Queue) Count() int {
 	return len(q.sockets)
 }
 
-func (q *Queue) Pop() *websocket.Conn {
+func (q *Queue) Pop() *Socket {
 	q.mut.Lock()
 
 	if q.Head != nil {
@@ -43,7 +41,7 @@ func (q *Queue) Pop() *websocket.Conn {
 	return nil
 }
 
-func (q *Queue) Remove(socket *websocket.Conn) {
+func (q *Queue) Remove(socket *Socket) {
 	q.mut.Lock()
 	defer q.mut.Unlock()
 
@@ -70,7 +68,7 @@ func (q *Queue) Remove(socket *websocket.Conn) {
 	}
 }
 
-func (q *Queue) Push(socket *websocket.Conn) {
+func (q *Queue) Push(socket *Socket) {
 	q.mut.Lock()
 	defer q.mut.Unlock()
 
@@ -92,37 +90,68 @@ func (q *Queue) Push(socket *websocket.Conn) {
 
 type QueueManager struct {
 	queue *Queue
+	mutex *sync.Mutex
 }
 
 func NewQueueManager() *QueueManager {
 	return &QueueManager{
+		mutex: new(sync.Mutex),
 		queue: &Queue{
 			mut:     new(sync.Mutex),
-			sockets: make(map[*websocket.Conn]*Node),
+			sockets: make(map[*Socket]*Node),
 		},
 	}
+}
+
+func (q *QueueManager) Push(socket *Socket) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	q.queue.Push(socket)
+}
+
+func (q *QueueManager) Pop() *Socket {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	return q.queue.Pop()
+}
+
+func (q *QueueManager) Remove(socket *Socket) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	q.queue.Remove(socket)
+}
+
+func (q *QueueManager) Count() int {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	return q.queue.Count()
 }
 
 func (q *QueueManager) Process(event Event, server *Server) {
 	switch event.Type {
 	case "dequeue", "disconnected":
-		q.queue.Remove(event.Socket)
+		q.Remove(event.Socket)
 	case "queue_up":
-		q.queue.Push(event.Socket)
+		q.Push(event.Socket)
 
-		NewSocket(event.Socket).Send(Message{
+		event.Socket.Send(Message{
 			Type: "wait_for_match",
 		})
 
-		if q.queue.Count() == NUM_OF_PLAYERS {
-			players := make([]*websocket.Conn, 0)
+		if q.Count() == NUM_OF_PLAYERS {
+			players := make([]*Socket, 0)
 
 			for i := 0; i < NUM_OF_PLAYERS; i++ {
-				players = append(players, q.queue.Pop())
+				players = append(players, q.Pop())
 			}
 
 			server.Dispatch(Event{
-				Type: "match_found",
+				Type:   "match_found",
+				Socket: event.Socket,
 				Payload: map[string]interface{}{
 					"players": players,
 				},

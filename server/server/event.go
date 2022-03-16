@@ -1,20 +1,16 @@
 package server
 
-import (
-	"github.com/gorilla/websocket"
-)
-
 type Event struct {
 	Type    string
 	Payload map[string]interface{}
-	Socket  *websocket.Conn
+	Socket  *Socket
 }
 
 type EventHandler interface {
 	Process(event Event, server *Server)
 }
 
-func NewEvent(msg Message, socket *websocket.Conn) Event {
+func NewEvent(msg Message, socket *Socket) Event {
 	return Event{
 		Type:    msg.Type,
 		Payload: msg.Payload,

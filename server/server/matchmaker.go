@@ -9,10 +9,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type Connection interface {
-	Send(msg Message)
-}
-
 type Socket struct {
 	conn  *websocket.Conn
 	mutex *sync.Mutex
@@ -32,18 +28,19 @@ func (s *Socket) Send(msg Message) {
 	s.conn.WriteJSON(msg)
 }
 
+func (s *Socket) Close() {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	s.conn.Close()
+}
+
 type Sockets struct {
 	conns []*Socket
 	mutex *sync.Mutex
 }
 
-func NewSockets(conns []*websocket.Conn) *Sockets {
-	sockets := []*Socket{}
-
-	for _, conn := range conns {
-		sockets = append(sockets, NewSocket(conn))
-	}
-
+func NewSockets(sockets []*Socket) *Sockets {
 	return &Sockets{
 		conns: sockets,
 		mutex: new(sync.Mutex),
@@ -59,13 +56,11 @@ func (s *Sockets) Send(msg Message) {
 	}
 }
 
-func (s *Sockets) Add(conn *websocket.Conn) *Socket {
+func (s *Sockets) Add(socket *Socket) *Socket {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	socket := NewSocket(conn)
 	s.conns = append(s.conns, socket)
-
 	return socket
 }
 
@@ -76,12 +71,12 @@ func (s *Sockets) Count() int {
 	return len(s.conns)
 }
 
-func (s *Sockets) Has(conn *websocket.Conn) bool {
+func (s *Sockets) Has(conn *Socket) bool {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	for _, socket := range s.conns {
-		if socket.conn == conn {
+		if socket.conn == conn.conn {
 			return true
 		}
 	}
@@ -104,7 +99,7 @@ func NewMatch(id int, players *Sockets) *Match {
 		Id:        id,
 		Players:   players,
 		Ready:     make(chan bool),
-		Confirmed: NewSockets([]*websocket.Conn{}),
+		Confirmed: NewSockets([]*Socket{}),
 	}
 }
 
@@ -154,16 +149,16 @@ func (m *Match) RequeueConfirmed(dispatch func(event Event)) {
 	for _, socket := range m.Confirmed.conns {
 		dispatch(Event{
 			Type:   "queue_up",
-			Socket: socket.conn,
+			Socket: socket,
 		})
 	}
 }
 
-func (m *Match) AddConfirmed(conn *websocket.Conn) {
+func (m *Match) AddConfirmed(socket *Socket) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	socket := m.Confirmed.Add(conn)
+	m.Confirmed.Add(socket)
 
 	socket.Send(Message{
 		Type: "wait_for_players",
@@ -224,7 +219,7 @@ func (m *MatchMaker) FindMatch(matchId int) (*Match, error) {
 	return match, nil
 }
 
-func (m *MatchMaker) FindMatchWithSocket(socket *websocket.Conn) *Match {
+func (m *MatchMaker) FindMatchWithSocket(socket *Socket) *Match {
 	m.mut.Lock()
 	defer m.mut.Unlock()
 
@@ -256,7 +251,7 @@ func (m *MatchMaker) Process(event Event, server *Server) {
 		}
 
 	case "match_found":
-		players := event.Payload["players"].([]*websocket.Conn)
+		players := event.Payload["players"].([]*Socket)
 		match := m.AddMatch(NewSockets(players))
 
 		match.AskForConfirmation()
