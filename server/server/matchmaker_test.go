@@ -117,8 +117,10 @@ func TestDenyMatch(t *testing.T) {
 	c1.AcceptMatch(1)
 	c2.DenyMatch(1)
 
-	if queueManager.queue.Count() != 1 {
-		t.Error("Expected confirmed to go back to queue")
+	time.Sleep(time.Millisecond)
+
+	if queueManager.Count() != 1 {
+		t.Errorf("Expected confirmed to go back to queue, got %v", queueManager.Count())
 	}
 }
 

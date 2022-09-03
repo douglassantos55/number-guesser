@@ -315,6 +315,8 @@ func TestDispatchesMatchFound(t *testing.T) {
 	c1.QueueUp()
 	c2.QueueUp()
 
+	time.Sleep(time.Millisecond)
+
 	if fakeMaker.Count() != 1 {
 		t.Errorf("Expected match found to be dispatched, got %d", fakeMaker.Count())
 	}

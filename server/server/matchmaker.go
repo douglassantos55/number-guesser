@@ -119,12 +119,14 @@ func (m *Match) WaitForConfirmation(timeout time.Duration, dispatch func(event E
 	select {
 	case isReady := <-m.Ready:
 		if isReady {
+			m.mutex.Lock()
 			dispatch(Event{
 				Type: "game_start",
 				Payload: map[string]interface{}{
 					"players": m.Confirmed,
 				},
 			})
+			m.mutex.Unlock()
 		}
 	case <-time.After(timeout):
 		m.Cancel(dispatch)
@@ -133,7 +135,6 @@ func (m *Match) WaitForConfirmation(timeout time.Duration, dispatch func(event E
 
 func (m *Match) Cancel(dispatch func(event Event)) {
 	m.mutex.Lock()
-	defer m.mutex.Unlock()
 
 	m.Players.Send(Message{
 		Type: "match_canceled",
@@ -142,10 +143,14 @@ func (m *Match) Cancel(dispatch func(event Event)) {
 		},
 	})
 
+	m.mutex.Unlock()
 	m.RequeueConfirmed(dispatch)
 }
 
 func (m *Match) RequeueConfirmed(dispatch func(event Event)) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
 	for _, socket := range m.Confirmed.conns {
 		dispatch(Event{
 			Type:   "queue_up",

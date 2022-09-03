@@ -6,9 +6,11 @@ import (
 )
 
 func TestGame(t *testing.T) {
+	gameManager := NewGameManager()
+
 	server := NewServer([]EventHandler{
+		gameManager,
 		NewQueueManager(),
-		NewGameManager(),
 		NewMatchMaker(200 * time.Millisecond),
 	})
 
@@ -33,6 +35,8 @@ func TestGame(t *testing.T) {
 	c2.GetIncoming()        // guess
 
 	gameId := int(res.Payload["GameId"].(float64))
+
+	gameManager.Games[gameId].Answer = 40
 
 	res1 := c1.Guess("69", gameId)
 	res2 := c2.Guess("4", gameId)
